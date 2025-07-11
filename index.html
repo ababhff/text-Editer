@@ -88,7 +88,7 @@
             </div>
 
             <div id="status" class="hidden bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4"></div>
-            <div id="wordCounter" class="text-right text-gray-500 text-sm mb-2">0 शब्द | 0 वर्ण</div>
+            <div id="wordCounter" class="text-right text-gray-500 text-sm mb-2">0 शब्द | 0 वर्ण | 0 पंक्तियाँ</div>
 
             <div class="mb-4">
                 <textarea id="editor" class="w-full h-96 p-4 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="यहाँ टाइप करें या वॉयस का उपयोग करें..."></textarea>
@@ -110,14 +110,16 @@
                 <a href="#" class="hover:text-indigo-600">संपर्क</a>
             </div>
             <p>इस टूल का उपयोग विभिन्न प्रकार के कानूनी दस्तावेज बनाने के लिए किया जा सकता है।</p>
-            <p class="mt-1">© 2023 हिंदी कानूनी टेक्स्ट एडिटर - सभी अधिकार सुरक्षित</p>
+            <p class="mt-1">© 2025 हिंदी कानूनी टेक्स्ट एडिटर - सभी अधिकार सुरक्षित</p>
         </footer>
     </div>
 
     <script>
-        // Voice recognition variables
+        // ================= Speech Recognition Setup =================
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
         let recognition;
         let isRecording = false;
+
         const startBtn = document.getElementById('startRecording');
         const stopBtn = document.getElementById('stopRecording');
         const clearBtn = document.getElementById('clearText');
@@ -125,49 +127,47 @@
         const editor = document.getElementById('editor');
         const statusDiv = document.getElementById('status');
         const templateSelect = document.getElementById('templateSelect');
-        
-        // Check for speech recognition support
-        if ('webkitSpeechRecognition' in window) {
-            recognition = new webkitSpeechRecognition();
+
+        if (SpeechRec) {
+            recognition = new SpeechRec();
             recognition.continuous = true;
             recognition.interimResults = true;
-            recognition.lang = 'hi-IN'; // Set to Hindi
-            
+            recognition.lang = 'hi-IN';
+
             recognition.onresult = function(event) {
                 let finalTranscript = '';
                 let isContentGenerated = false;
-                
+
                 for (let i = event.resultIndex; i < event.results.length; i++) {
                     const transcript = event.results[i][0].transcript.trim();
                     if (event.results[i].isFinal) {
-                        // Analyze for legal phrases and generate content
-                        if (transcript.includes('शपथ पत्र') || transcript.includes('affidavit')) {
+                        if (transcript.includes('शपथ पत्र') || transcript.toLowerCase().includes('affidavit')) {
                             finalTranscript = generateAffidavitTemplate();
                             isContentGenerated = true;
-                        } else if (transcript.includes('शिकायत') || transcript.includes('complaint')) {
+                        } else if (transcript.includes('शिकायत') || transcript.toLowerCase().includes('complaint')) {
                             finalTranscript = generateComplaintTemplate();
                             isContentGenerated = true;
                         }
-                        
+
                         if (!isContentGenerated) {
                             finalTranscript = transcript + ' ';
                         }
                     }
                 }
-                
+
                 if (finalTranscript) {
                     const cursorPos = editor.selectionStart;
                     const textBefore = editor.value.substring(0, cursorPos);
                     const textAfter = editor.value.substring(cursorPos);
-                    
+
                     editor.value = textBefore + finalTranscript + textAfter;
                     editor.selectionStart = cursorPos + finalTranscript.length;
                     editor.selectionEnd = cursorPos + finalTranscript.length;
-                    
+
                     updateWordCounter();
                 }
             };
-            
+
             recognition.onerror = function(event) {
                 console.error('Speech recognition error', event.error);
                 statusDiv.classList.remove('hidden');
@@ -175,7 +175,7 @@
                 isRecording = false;
                 updateButtonStates();
             };
-            
+
             recognition.onend = function() {
                 if (isRecording) {
                     recognition.start();
@@ -187,10 +187,10 @@
             startBtn.disabled = true;
             stopBtn.disabled = true;
         }
-        
-        // Button event listeners
+
+        // ================= Button Event Listeners =================
         startBtn.addEventListener('click', () => {
-            if (!isRecording) {
+            if (!isRecording && recognition) {
                 try {
                     recognition.start();
                     isRecording = true;
@@ -203,27 +203,28 @@
                 }
             }
         });
-        
+
         stopBtn.addEventListener('click', () => {
-            if (isRecording) {
+            if (isRecording && recognition) {
                 recognition.stop();
                 isRecording = false;
                 updateButtonStates();
                 statusDiv.classList.add('hidden');
             }
         });
-        
+
         clearBtn.addEventListener('click', () => {
             editor.value = '';
+            updateWordCounter();
         });
-        
+
         saveBtn.addEventListener('click', () => {
             if (editor.value.trim() === '') {
                 statusDiv.classList.remove('hidden');
                 statusDiv.textContent = 'सेव करने के लिए कोई टेक्स्ट नहीं है';
                 return;
             }
-            
+
             const blob = new Blob([editor.value], { type: 'text/plain;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -233,25 +234,23 @@
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            
+
             statusDiv.classList.remove('hidden');
             statusDiv.textContent = 'दस्तावेज सफलतापूर्वक सेव किया गया';
-            setTimeout(() => {
-                statusDiv.classList.add('hidden');
-            }, 2000);
+            setTimeout(() => statusDiv.classList.add('hidden'), 2000);
         });
-        
-        // Template selector
+
+        // ================= Template Selector =================
         templateSelect.addEventListener('change', function() {
             const templateType = this.value;
             let templateText = '';
-            
-            switch(templateType) {
+
+            switch (templateType) {
                 case 'affidavit':
-                    templateText = `प्रतिज्ञापत्र\n\nमैं, [आपका पूरा नाम], पिता/पति श्री [पिता/पति का नाम], निवासी [पता], यह प्रतिज्ञापत्र देता हूँ/देती हूँ कि:\n\n1. मैं भारत का नागरिक हूँ।\n\n2. [तथ्यों का विवरण]\n\nमैं यह घोषणा करता/करती हूँ कि उपरोक्त सभी बातें सत्य हैं और मैं इस बात के लिए जिम्मेदार हूँ।\n\nस्थान: [शहर का नाम]\nतारीख: [दिनांक]\n\nहस्ताक्षर\n[आपका नाम]`;
+                    templateText = generateAffidavitTemplate();
                     break;
                 case 'complaint':
-                    templateText = `शिकायत पत्र\n\nसेवा में,\n[अधिकारी का पद और नाम]\n[विभाग/कार्यालय का नाम]\n[पता]\n\nविषय: [शिकायत का संक्षिप्त विवरण]\n\nमहोदय,\n\nमैं, [आपका पूरा नाम], निवासी [पता], अपनी निम्नलिखित शिकायत दर्ज कराना चाहता/चाहती हूँ:\n\n[शिकायत का विस्तृत विवरण]\n\nमैं आपसे निवेदन करता/करती हूँ कि इस मामले में उचित कार्रवाई करने की कृपा करें।\n\nधन्यवाद,\n\nआपका विश्वासी,\n[आपका नाम]\n[संपर्क नंबर]\n[दिनांक]`;
+                    templateText = generateComplaintTemplate();
                     break;
                 case 'application':
                     templateText = `आवेदन पत्र\n\nसेवा में,\n[अधिकारी का पद]\n[विभाग/कार्यालय का नाम]\n[पता]\n\nविषय: [आवेदन का संक्षिप्त विवरण]\n\nमहोदय,\n\nसविनय निवेदन है कि [आवेदन का विवरण]।\n\nअतः श्रीमान जी से विनम्र अनुरोध है कि मेरे उपरोक्त निवेदन पर उचित कार्यवाही करने की कृपा करें।\n\nधन्यवाद,\n\nआपका आज्ञाकारी,\n[आपका नाम]\n[पता]\n[संपर्क नंबर]\n[दिनांक]`;
@@ -260,13 +259,14 @@
                     templateText = `कानूनी नोटिस\n\nसे. [आपका नाम]\n[आपका पता]\n[संपर्क नंबर]\n[दिनांक]\n\nप्रति,\n[प्राप्तकर्ता का नाम]\n[पता]\n\nविषय: [नोटिस का संक्षिप्त विवरण]\n\nमहोदय,\n\nआपको इस नोटिस के माध्यम से सूचित किया जाता है कि [मामले का विवरण]।\n\nआपसे अपेक्षा की जाती है कि आप [आवश्यक कार्रवाई] करेंगे। यदि आप इस नोटिस प्राप्ति की तिथि से [समय सीमा] के भीतर उचित कार्रवाई नहीं करते हैं, तो मैं विधिक कार्यवाही करने के लिए बाध्य होऊंगा/होऊंगी।\n\nआपका विश्वासी,\n[आपका नाम]\n[हस्ताक्षर]`;
                     break;
             }
-            
+
             if (templateText) {
                 editor.value = templateText;
+                updateWordCounter();
             }
         });
-        
-        // Formatting buttons
+
+        // ================= Formatting Buttons =================
         document.querySelectorAll('.legal-format-btn').forEach(btn => {
             btn.addEventListener('click', function() {
                 const tag = this.dataset.tag;
@@ -274,14 +274,12 @@
                 const selectionStart = editor.selectionStart;
                 const selectionEnd = editor.selectionEnd;
                 const selectedText = editor.value.substring(selectionStart, selectionEnd);
-                
+
                 let newText = '';
-                
+
                 if (selectedText) {
                     if (tag === 'h1') {
                         newText = `\n${selectedText}\n`;
-                        // Adjust cursor position after insertion
-                        editor.setSelectionRange(selectionStart + 1, selectionEnd + 1);
                     } else if (tag === 'div') {
                         newText = `<div class="${className}">\n${selectedText}\n</div>`;
                     } else {
@@ -296,54 +294,20 @@
                         newText = `<${tag}>\n\n</${tag}>`;
                     }
                 }
-                
+
                 const beforeText = editor.value.substring(0, selectionStart);
                 const afterText = editor.value.substring(selectionEnd);
-                
                 editor.value = beforeText + newText + afterText;
-                
-                // Set cursor position based on the operation
-                if (!selectedText) {
-                    if (tag === 'h1') {
-                        editor.setSelectionRange(selectionStart + 1, selectionStart + 8);
-                    } else if (tag === 'div') {
-                        editor.setSelectionRange(selectionStart + newText.indexOf('\n') + 1, 
-                                               selectionStart + newText.indexOf('\n') + 1);
-                    } else {
-                        editor.setSelectionRange(selectionStart + newText.indexOf('\n') + 1, 
-                                               selectionStart + newText.indexOf('\n') + 1);
-                    }
+
+                // --- Safe cursor positioning ---
+                const firstNewLine = newText.indexOf('\n');
+                if (!selectedText && firstNewLine !== -1) {
+                    const cursorPos = selectionStart + firstNewLine + 1;
+                    editor.setSelectionRange(cursorPos, cursorPos);
                 }
+
+                updateWordCounter();
             });
         });
-        
-        // Content generation functions
-        function generateAffidavitTemplate() {
-            return `प्रतिज्ञापत्र\n\nमैं, [आपका पूरा नाम], पिता/पति श्री [पिता/पति का नाम], निवासी [पता], यह प्रतिज्ञापत्र देता हूँ/देती हूँ कि:\n\n1. [तथ्य 1]\n2. [तथ्य 2]\n\nमैं यह घोषणा करता/करती हूँ कि उपरोक्त सभी बातें सत्य हैं।\n\nस्थान: [शहर]\nतारीख: [दिनांक]\n\nहस्ताक्षर\n[आपका नाम]`;
-        }
 
-        function generateComplaintTemplate() {
-            return `शिकायत पत्र\n\nसेवा में,\n[अधिकारी का नाम]\n[विभाग/कार्यालय]\n[पता]\n\nविषय: [शिकायत का विवरण]\n\nमहोदय,\n\n[शिकायत का विस्तृत विवरण]\n\nधन्यवाद,\n[आपका नाम]\n[संपर्क नंबर]\n[दिनांक]`;
-        }
-
-        // Word counter functionality
-        function updateWordCounter() {
-            const text = editor.value;
-            const charCount = text.length;
-            const wordCount = text.trim() === '' ? 0 : text.split(/\s+/).length;
-            const lineCount = text.trim() === '' ? 0 : text.split('\n').length;
-            document.getElementById('wordCounter').textContent = 
-                `${wordCount} शब्द | ${charCount} वर्ण | ${lineCount} पंक्तियाँ`;
-        }
         
-        editor.addEventListener('input', updateWordCounter);
-        
-        // Helper function to update button states
-        function updateButtonStates() {
-            startBtn.disabled = isRecording;
-            stopBtn.disabled = !isRecording;
-        }
-    </script>
-</body>
-</html>
-
